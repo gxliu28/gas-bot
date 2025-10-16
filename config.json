@@ -21,7 +21,26 @@
         "assignee_email": "担当者メール",
         "boss_name": "上長氏名",
         "boss_email": "上長メール"
-      }
+      },
+      "filters": {
+	"and": [
+	{ "column": "進捗状況", "op": "in", "value": ["対応中", "遅延"] },
+	{
+		"or": [
+		{ "column": "優先度", "op": "=", "value": "高" },
+		{ "column": "リスク分類", "op": "!=", "value": "軽微" }
+		]
+	},
+	{
+		"not": {
+			"column": "担当者メール",
+			"op": "contains",
+			"value": "test@"
+		}
+	}
+	]
+}
+
     }
   ]
 }
