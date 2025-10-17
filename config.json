@@ -7,15 +7,13 @@
       "sheet_id": "19aMAI7smxsnQ8YF4SVrFSCFEttFz_DnQ8LKNRmAPMRk",
       "sheet_name": "リスク受容",
       "channel": "#テスト",
-      "daysFromNow": [14],
       "boss_cc": true,
       "comments": {
-        "14": "$name さん、案件「$task」は2週間後が期限です。早急に対応をお願いします。",
-        "29": "$name さん、案件「$task」は約1ヶ月後が期限です。ご確認と対応をお願いします。"
+        "13": "$name さん、案件「$task」は2週間後が期限です。:loudspeaker: 早急に対応をお願いします。",
+        "28": "$name さん、案件「$task」は約1ヶ月後が期限です。:loudspeaker: ご確認と対応をお願いします。"
       },
       "columns": {
         "task": "案件",
-        "progress": "進捗状況",
         "due": "期限日",
         "assignee_name": "担当者氏名",
         "assignee_email": "担当者メール",
@@ -23,24 +21,15 @@
         "boss_email": "上長メール"
       },
       "filters": {
-	"and": [
-	{ "column": "進捗状況", "op": "in", "value": ["対応中", "遅延"] },
-	{
-		"or": [
-		{ "column": "優先度", "op": "=", "value": "高" },
-		{ "column": "リスク分類", "op": "!=", "value": "軽微" }
-		]
-	},
-	{
-		"not": {
-			"column": "担当者メール",
-			"op": "contains",
-			"value": "test@"
-		}
-	}
-	]
-}
-
+        "and": [
+          { "column": "diffDays", "op": "in", "value": [13, 28] },
+          { "or": [
+              { "column": "進捗状況", "op": "in", "value": ["対応中", "遅延"] },
+              { "column": "情報区分", "op": "in", "value": ["極秘", "重要秘密"] }
+            ]
+          }
+        ]
+      }
     }
   ]
 }

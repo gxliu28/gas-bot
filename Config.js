@@ -1,25 +1,21 @@
-var Config = (function() {
+/**
+ * Config.gs
+ * - 設定ファイル(config.json)のロードを担当
+ */
+var Config = (function () {
+	const CONFIG_FILE_ID = '1goWDWtwWIdZ0DJLJ6SvksitcCzYGcKHI'; // Drive上のconfig.json ID
 
-  return {
-    loadConfig: function(fileId) {
-      const file = DriveApp.getFileById(fileId);
-      return JSON.parse(file.getBlob().getDataAsString());
-    },
+	function load() {
+		try {
+			const file = DriveApp.getFileById(CONFIG_FILE_ID);
+			const json = file.getBlob().getDataAsString();
+			return JSON.parse(json);
+		} catch (e) {
+			Logger.log(`❌ config.json 読み込みエラー: ${e.message}`);
+			throw e;
+		}
+	}
 
-    saveLog: function(folderId, logLines) {
-      if (!logLines || logLines.length === 0) return;
-
-      const folder = DriveApp.getFolderById(folderId);
-      const files = folder.getFilesByName('log.txt');
-      let logFile;
-      if (files.hasNext()) {
-        logFile = files.next();
-        const existing = logFile.getBlob().getDataAsString();
-        logFile.setContent(existing + '\n' + logLines.join('\n'));
-      } else {
-        logFile = folder.createFile('log.txt', logLines.join('\n'));
-      }
-    }
-
-  };
+	return { load };
 })();
+
