@@ -1,12 +1,80 @@
 /**
- * Code.gs
- * - Slack Bot Token 版 自動リマインダー（複雑フィルタ対応版）
+ * Webアプリ版 Config エディタ
+ * - 現在の設定をロードして表示
+ * - 編集後に保存
  */
-function runSlackReminder_Debug() {
+
+const CONFIG_FILE_ID = '1goWDWtwWIdZ0DJLJ6SvksitcCzYGcKHI';
+
+/**
+ * Webアプリを開く
+ */
+function doGet() {
+	return HtmlService.createHtmlOutputFromFile('index.html')
+		.setTitle('Slack Reminder 設定エディタ');
+}
+
+/**
+ * 現在の設定を読み込む（Web UIから呼ばれる）
+ */
+function loadConfig() {
+	const file = DriveApp.getFileById(CONFIG_FILE_ID);
+	const config = JSON.parse(file.getBlob().getDataAsString());
+
+	// Webで使いやすい最小データを返す
+	const target = config.targets[0];
+	const filters = target.filters.and[1].or;
+	return {
+		timezone: config.timezone,
+		sheet_name: target.sheet_name,
+		progress: filters[0].value,
+		confidential: filters[1].value,
+		diffDays: target.filters.and[0].value,
+	};
+}
+
+/**
+ * 設定を保存（Web UIから呼ばれる）
+ */
+function saveConfig(data) {
+	const file = DriveApp.getFileById(CONFIG_FILE_ID);
+	const config = JSON.parse(file.getBlob().getDataAsString());
+
+	// 更新
+	const target = config.targets[0];
+	target.filters.and[0].value = data.diffDays.map(Number); // 数値配列
+	target.filters.and[1].or[0].value = data.progress;
+	target.filters.and[1].or[1].value = data.confidential;
+
+	file.setContent(JSON.stringify(config, null, 2));
+
+	return '設定を保存しました。';
+}
+
+function getConfig() {
+	const config = Config.load();
+	const target = config.targets[0];
+	const sheet = SpreadsheetApp.openById(target.sheet_id).getSheetByName(target.sheet_name);
+	const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+	return { config, headers };
+}
+
+function saveFullConfig(newConfig) {
+	Config.save(newConfig);
+}
+
+function saveComments(newComments) {
+	const config = Config.load();
+	config.targets[0].comments = newComments;
+	Config.save(config);
+}
+
+function runSlackReminder_BotToken() {
 	const config = Config.load();
 	const token = PropertiesService.getScriptProperties().getProperty('SLACK_BOT_TOKEN');
 	if (!token) throw new Error('SLACK_BOT_TOKEN が登録されていません。');
 
+	const debug = PropertiesService.getScriptProperties().getProperty('DEBUG_MODE') === 'true';
 	const tz = config.timezone || 'Asia/Tokyo';
 	const now = new Date(new Date().toLocaleString('ja-JP', { timeZone: tz }));
 	const logLines = [];
@@ -32,18 +100,19 @@ function runSlackReminder_Debug() {
 			record.diffDays = diffDays;
 
 			const hit = !target.filters || Utils.evaluateFilter(target.filters, record);
+			if (!hit) continue;
 
 			// デバッグ表示
-			Logger.log(
-				`案件: ${record[headers[idx.task]] || ''}, ` +
-				`担当者: ${record[headers[idx.assignee_name]] || ''}, ` +
-				`diffDays: ${diffDays}, ` +
-				`進捗状況: ${record['進捗状況'] || ''}, ` +
-				`情報区分: ${record['情報区分'] || ''}, ` +
-				`フィルタヒット: ${hit}`
-			);
-
-			if (!hit) continue;
+			if (debug) {
+				Logger.log(
+					`案件: ${record[headers[idx.task]] || ''}, ` +
+					`担当者: ${record[headers[idx.assignee_name]] || ''}, ` +
+					`diffDays: ${diffDays}, ` +
+					`進捗状況: ${record['進捗状況'] || ''}, ` +
+					`情報区分: ${record['情報区分'] || ''}, ` +
+					`フィルタヒット: ${hit}`
+				);
+			}
 
 			const name = row[idx.assignee_name];
 			const task = row[idx.task];

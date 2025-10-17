@@ -49,6 +49,7 @@ var Utils = (function () {
 	}
 
 	function evaluateFilter(filter, record) {
+		const debug = PropertiesService.getScriptProperties().getProperty('DEBUG_MODE') === 'true';
 		if (!filter) return true;
 
 		if (filter.and) return filter.and.every(f => evaluateFilter(f, record));
@@ -67,12 +68,14 @@ var Utils = (function () {
 			case 'in':
 				// filter.value が配列なら、trimをしてから文字列に変換してから比較
 				if (!Array.isArray(filter.value)) return false;
-				// デバッグ用ログ
-				Logger.log(`列: ${filter.column}, セル値: '${value}', フィルタ配列: [${filter.value.join(", ")}]`);
-
 				return filter.value.some(v => String(v).trim() === String(value).trim());
 			case 'includes':
 				return String(value).includes(filter.value);
+
+			if (debug) {
+				Logger.log(`列: ${filter.column}, 値: ${value}, 比較: ${filter.op} ${filter.value} => ${result}`);
+			}
+
 			default: return false;
 		}
 	}

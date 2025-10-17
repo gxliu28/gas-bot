@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<base target="_top">
+		<meta charset="UTF-8" />
+		<style>
+			body { font-family: sans-serif; margin: 20px; }
+			table { border-collapse: collapse; width: 100%; margin-bottom: 20px; }
+			th, td { border: 1px solid #ccc; padding: 6px; text-align: left; vertical-align: middle; }
+			input, select, textarea { width: 100%; box-sizing: border-box; }  /* ← ← これを追加 */
+			textarea { resize: vertical; min-height: 60px; } /* 高さも調整可 */
+			h3 { margin-top: 30px; }
+			button { padding: 6px 12px; margin-top: 8px; }
+			.hint { color:#666; font-size: 12px; }
+		</style>
+		<script>
+			let configData, sheetHeaders = [];
+
+			// 初期ロード
+			function loadConfig() {
+				google.script.run.withSuccessHandler(renderUI).getConfig();
+			}
+
+			// 画面描画
+			function renderUI(payload) {
+				const { config, headers } = payload;
+				configData = config;
+				sheetHeaders = headers;
+
+				const target = config.targets?.[0] || {};
+				renderComments(target);
+				renderFilterBuilder(target);
+			}
+
+			// ===== ① diffDays / comments テーブル =====
+			function renderComments(target) {
+				const comments = target.comments || {};
+				const tbody = document.querySelector('#commentsTable tbody');
+				tbody.innerHTML = '';
+				// diffDays（数値のキー）で昇順に並べて表示
+				Object.keys(comments)
+					.sort((a,b) => Number(a) - Number(b))
+					.forEach(diff => addCommentRow(diff, comments[diff]));
+			}
+
+			function addCommentRow(diff = '', comment = '') {
+				const tbody = document.querySelector('#commentsTable tbody');
+				const tr = document.createElement('tr');
+				tr.innerHTML = `
+					<td style="width:160px">
+						<input type="number" class="diffInput" value="${diff}" min="0" step="1" />
+					</td>
+					<td>
+						<textarea class="commentInput" rows="3" placeholder="$name / $task が使用可能">${comment}</textarea>
+					</td>
+					<td style="width:84px">
+						<button type="button" onclick="this.closest('tr').remove()">削除</button>
+					</td>
+				`;
+				tbody.appendChild(tr);
+			}
+
+			// ===== ② フィルタビルダー（ANDのフラット行） =====
+			// 表示は「diffDays を除外」して出す（diffDaysはcommentsから自動生成するため）
+			function renderFilterBuilder(target) {
+				const tbody = document.querySelector('#filterTable tbody');
+				tbody.innerHTML = '';
+
+				const andFilters = target.filters?.and || [];
+				const visibleFilters = andFilters.filter(f => (f?.column || '').toString() !== 'diffDays');
+
+				visibleFilters.forEach(f => addFilterRow(f.column, f.op, f.value));
+			}
+
+			function addFilterRow(column = '', op = '==', value = '') {
+				const tbody = document.querySelector('#filterTable tbody');
+				const tr = document.createElement('tr');
+				const headerOptions = sheetHeaders
+					.map(h => `<option value="${escapeHtml(h)}" ${h === column ? 'selected' : ''}>${escapeHtml(h)}</option>`)
+					.join('');
+				const valueStr = Array.isArray(value) ? value.join(',') : (value ?? '');
+
+				tr.innerHTML = `
+					<td style="width:260px">
+						<select class="columnSelect">
+							<option value="">(列を選択)</option>
+							${headerOptions}
+						</select>
+					</td>
+					<td style="width:160px">
+						<select class="opSelect">
+							<option value="==">==</option>
+							<option value="!=">!=</option>
+							<option value="in">in</option>
+							<option value="includes">includes</option>
+							<option value=">">&gt;</option>
+							<option value=">=">&gt;=</option>
+							<option value="<">&lt;</option>
+							<option value="<=">&lt;=</option>
+						</select>
+					</td>
+					<td>
+						<input type="text" class="valueInput" placeholder="値（in の場合はカンマ区切り）" value="${escapeHtml(valueStr)}" />
+					</td>
+					<td style="width:84px">
+						<button type="button" onclick="this.closest('tr').remove()">削除</button>
+					</td>
+				`;
+				// op 初期値
+				tr.querySelector('.opSelect').value = op;
+				// column 初期値（空でなければ合わせる）
+				if (column) tr.querySelector('.columnSelect').value = column;
+
+				tbody.appendChild(tr);
+			}
+
+			// ===== 保存 =====
+			function saveConfig() {
+				// 1) comments を収集（diffDaysとテンプレのペア）
+				const newComments = {};
+				document.querySelectorAll('#commentsTable tbody tr').forEach(row => {
+					const diffRaw = row.querySelector('.diffInput').value.trim();
+					const comment = row.querySelector('.commentInput').value.trim();
+					if (diffRaw !== '' && comment !== '') {
+						const n = Number(diffRaw);
+						if (!Number.isNaN(n)) {
+							newComments[String(n)] = comment;
+						}
+					}
+				});
+
+				// 2) diffDays を comments のキーから自動生成
+				const diffDays = Object.keys(newComments)
+					.map(k => Number(k))
+					.filter(n => Number.isFinite(n))
+					.sort((a,b) => a - b);
+
+				// 3) 画面に表示しているフィルタ行を収集（＝diffDays 以外）
+				const otherFilters = [];
+				document.querySelectorAll('#filterTable tbody tr').forEach(row => {
+					const column = row.querySelector('.columnSelect').value.trim();
+					const op = row.querySelector('.opSelect').value.trim();
+					const valStr = row.querySelector('.valueInput').value.trim();
+					if (!column || !op) return;
+
+					let value;
+					if (op === 'in') {
+						value = valStr.split(',').map(s => s.trim()).filter(s => s.length > 0);
+					} else {
+						value = valStr;
+					}
+					otherFilters.push({ column, op, value });
+				});
+
+				// 4) filters.and を再構築（先頭に diffDays フィルタを確実に入れる）
+				const andFilters = [];
+				if (diffDays.length > 0) {
+					andFilters.push({ column: 'diffDays', op: 'in', value: diffDays });
+				}
+				// 既存の diffDays は必ず除去してからマージする
+				for (const f of otherFilters) {
+					if ((f.column || '') !== 'diffDays') andFilters.push(f);
+				}
+
+				// 5) configData に書き戻し
+				const target = (configData.targets ||= [])[0] ||= {};
+				target.comments = newComments;
+				target.filters = { and: andFilters };
+
+				// 6) 保存
+				google.script.run
+					.withSuccessHandler(() => {
+						alert('保存しました');
+						loadConfig(); // 再ロードして反映確認
+					})
+					.saveFullConfig(configData);
+			}
+
+			// ===== ユーティリティ =====
+			function escapeHtml(str) {
+				return String(str).replace(/[&<>"']/g, s => ({
+					'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+				}[s]));
+}
+
+			window.onload = loadConfig;
+		</script>
+	</head>
+
+	<body>
+		<h2>Slack リマインダー設定エディタ</h2>
+
+		<h3>① diffDays と コメント設定</h3>
+		<p class="hint">diffDays を増減・変更すると、保存時に「期限日までの日数」フィルタが自動で再構築されます。</p>
+		<table id="commentsTable">
+			<thead>
+				<tr>
+					<th style="width:160px">期限日までの日数 (diffDays)</th>
+					<th>コメントテンプレート（$name / $task が使用可）</th>
+					<th style="width:84px"></th>
+				</tr>
+			</thead>
+			<tbody></tbody>
+		</table>
+		<button type="button" onclick="addCommentRow()">➕ 行を追加</button>
+
+		<h3>② フィルタ条件（AND 条件）</h3>
+		<table id="filterTable">
+			<thead>
+				<tr>
+					<th style="width:260px">列名</th>
+					<th style="width:160px">演算子</th>
+					<th>値（<code>in</code> の場合はカンマ区切り）</th>
+					<th style="width:84px"></th>
+				</tr>
+			</thead>
+			<tbody></tbody>
+		</table>
+		<button type="button" onclick="addFilterRow()">➕ 条件を追加</button>
+
+		<hr />
+		<button type="button" onclick="saveConfig()">💾 保存</button>
+	</body>
+</html>
+

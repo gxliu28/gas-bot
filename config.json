@@ -22,7 +22,7 @@
       },
       "filters": {
         "and": [
-          { "column": "diffDays", "op": "in", "value": [13, 28] },
+          { "column": "diffDays", "op": "in", "value": [13] },
           { "or": [
               { "column": "進捗状況", "op": "in", "value": ["対応中", "遅延"] },
               { "column": "情報区分", "op": "in", "value": ["極秘", "重要秘密"] }
