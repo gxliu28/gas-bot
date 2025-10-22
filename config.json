@@ -6,11 +6,11 @@
       "enable": true,
       "sheet_id": "19aMAI7smxsnQ8YF4SVrFSCFEttFz_DnQ8LKNRmAPMRk",
       "sheet_name": "リスク受容",
-      "channel": "#テスト",
+      "channel": "#リスク通知",
       "boss_cc": true,
-      "comments": {
-        "13": "$name さん、案件「$task」は2週間後が期限です。:loudspeaker: 早急に対応をお願いします。",
-        "28": "$name さん、案件「$task」は約1ヶ月後が期限です。:loudspeaker: ご確認と対応をお願いします。"
+      "text": {
+        "A": "templates/${sheet_name}_a.txt",
+        "B": "templates/${sheet_name}_b.txt"
       },
       "columns": {
         "task": "案件",
@@ -20,15 +20,62 @@
         "boss_name": "上長氏名",
         "boss_email": "上長メール"
       },
-      "filters": {
-        "and": [
-          { "column": "diffDays", "op": "in", "value": [13] },
-          { "or": [
-              { "column": "進捗状況", "op": "in", "value": ["対応中", "遅延"] },
-              { "column": "情報区分", "op": "in", "value": ["極秘", "重要秘密"] }
-            ]
-          }
-        ]
+      "filters": [
+        {
+          "name": "期限接近",
+          "comment": "A",
+          "and": [
+            { "column": "diffDays", "op": "in", "value": [12] },
+            { "column": "進捗状況", "op": "in", "value": ["対応中", "遅延"] }
+          ]
+        },
+        {
+          "name": "機密案件",
+          "comment": "B",
+          "and": [
+            { "column": "diffDays", "op": "in", "value": [27] },
+            { "column": "情報区分", "op": "in", "value": ["極秘", "重要秘密"] }
+          ]
+        }
+      ],
+      "schedule": {
+        "type": "timeBased",
+        "time": "09:00",
+        "daysOfWeek": ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"]
+      }
+    },
+    {
+      "enable": true,
+      "sheet_id": "1VjKObiLrSOvuvjUN1C_yMLgNzQe8gzr_svF91KY2YVE",
+      "sheet_name": "クラウド利用",
+      "channel": "#クラウド監視",
+      "boss_cc": false,
+      "text": {
+        "A": "templates/${sheet_name}_a.txt",
+        "B": "templates/${sheet_name}_b.txt"
+      },
+      "columns": {
+        "task": "クラウド名",
+        "due": "最新更新日",
+        "assignee_name": "担当者氏名",
+        "assignee_email": "担当者メール",
+        "boss_name": "上長氏名",
+        "boss_email": "上長メール"
+      },
+      "filters": [
+        {
+          "name": "期限接近",
+          "comment": "A",
+          "and": [
+            { "column": "ステータス", "op": "in", "value": ["早急催促", "早め催促"] },
+            { "column": "最終更新日", "op": "<=", "value": ["2024/06/30"] }
+          ]
+        }
+      ],
+      "schedule": {
+        "type": "timeBased",
+        "time": "10:00",
+        "daysOfWeek": ["MONDAY", "WEDNESDAY", "FRIDAY"]
       }
     }
   ]
